@@ -16,7 +16,8 @@ If several agents are waiting, each flash shows the next one's color. Colors, sp
 configurable, and an optional short "turn finished" flash is available.
 
 Built for Omnitype keyboards. It works with any QMK keyboard that has VIA and RGB lighting, and with
-MacBook built-in keyboards (white backlight only, see [MacBook keyboards](#macbook-keyboards)).
+Logitech MX Keys keyboards (white backlight only, see [Logitech MX Keys](#logitech-mx-keys)) and MacBook
+built-in keyboards (white backlight only, see [MacBook keyboards](#macbook-keyboards)).
 
 ## Requirements
 
@@ -25,6 +26,8 @@ MacBook built-in keyboards (white backlight only, see [MacBook keyboards](#macbo
   - Its firmware must speak **VIA protocol 12 or newer** (QMK from 2023 on). `agent-glow devices`
     tells you if it doesn't.
   - Tested on an Omnitype keyboard (Mechlovin Zed65 Rev1 PCB, `4d4c:6505`).
+- **Or a Logitech MX Keys keyboard**, connected by Bluetooth or a Bolt/Unifying receiver. See
+  [Logitech MX Keys](#logitech-mx-keys).
 - **Or a MacBook built-in keyboard.** See [MacBook keyboards](#macbook-keyboards).
 - **Python 3.9+** and git.
 - **macOS, Linux or Windows.** Only macOS has been tested on real hardware so far. Linux and Windows
@@ -89,8 +92,28 @@ if this is needed:
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
-Then unplug and replug the keyboard. The rule covers your keyboard's VID:PID only and uses
-`TAG+="uaccess"`, so it grants access to the logged-in user.
+Then unplug and replug the keyboard. The rule covers your keyboard's VID:PID only (for a Logitech keyboard, also
+every Logitech Bluetooth device) and uses `TAG+="uaccess"`, so it grants access to the logged-in user.
+
+### Logitech MX Keys
+
+MX Keys keyboards connected by Bluetooth or a Bolt/Unifying receiver are driven over Logitech's HID++
+protocol (feature `0x1982`). Tested on an MX Keys Mac (`046d:b361`) over Bluetooth on macOS. No firmware
+or VIA setup is needed, but they differ from RGB keyboards:
+
+- **The backlight is white only.** Every agent blinks the same way, and the color settings are ignored.
+- **It only blinks while the backlight is lit.** If the backlight has gone dark, whether from idling or the
+  brightness keys, agent-glow cannot turn it back on, so the alert is not visible.
+- **Blinking may write to the keyboard's flash.** Logitech's backlight command is reported to save its
+  settings, so long alerts could add wear. Lower `needs_input.ttl_seconds` to limit how long they run.
+- **Some models only switch on and off.** On these, including the MX Keys Mac, `brightness` has no effect.
+- **Short pauses can happen.** The keyboard sometimes stops answering over Bluetooth. agent-glow
+  reconnects by itself after a few seconds.
+- **Lighting changes are not guaranteed to be temporary.** agent-glow reads your backlight mode and level
+  before an alert and writes them back afterwards. If a crash interrupts this, the next daemon start or
+  `agent-glow restore` puts them back.
+- **A VIA keyboard takes priority** when both are connected. Pin one with `keyboard.vid` and `keyboard.pid`.
+- **Logi Options+ may also change the backlight** while it is running.
 
 ### MacBook keyboards
 
@@ -141,8 +164,8 @@ Create `~/.agent-glow/config.json`. Every key is optional, and the daemon picks 
 
 | Key | Meaning |
 | --- | --- |
-| `keyboard.vid` / `pid` | Which keyboard to use, as hex strings. Without them, the first usable keyboard is used (VIA first, then a MacBook's built-in keyboard). |
-| `keyboard.lighting` | `auto`, `rgblight`, `rgb_matrix` or `macbook`. Set it if the keyboard has both and `auto` picks the wrong one. |
+| `keyboard.vid` / `pid` | Which keyboard to use, as hex strings. Without them, the first usable keyboard is used (VIA first, then Logitech, then a MacBook's built-in keyboard). |
+| `keyboard.lighting` | `auto`, `rgblight`, `rgb_matrix` or `macbook`. Set it if the keyboard has both and `auto` picks the wrong one. Logitech keyboards are only used with `auto`. |
 | `agents` | Agents that may blink the keyboard. |
 | `blink_seconds` | Time on and time off per blink, from 0.1 to 5. |
 | `brightness` | Alert brightness, from 1 to 255. |
@@ -153,7 +176,7 @@ Create `~/.agent-glow/config.json`. Every key is optional, and the daemon picks 
 ## How it works
 
 ```
-agent hook ──► ~/.agent-glow/sessions/*.json ──► daemon ──VIA raw HID──► keyboard
+agent hook ──► ~/.agent-glow/sessions/*.json ──► daemon ──VIA or HID++ raw HID──► keyboard
 ```
 
 - **Hooks never touch the keyboard.** A hook only writes or deletes a tiny marker file and always
@@ -169,7 +192,7 @@ agent hook ──► ~/.agent-glow/sessions/*.json ──► daemon ──VIA ra
   - Saves the keyboard's current effect, color, brightness and speed.
   - Blinks the alert color.
   - Restores your lighting when nothing is waiting any more.
-- **Your saved lighting is never overwritten.** Every write uses VIA's non-saving "set" command, so
+- **Your saved lighting is never overwritten (QMK).** Every write uses VIA's non-saving "set" command, so
   the keyboard's EEPROM is untouched, and unplugging it always brings your own lighting back.
 - **Crash recovery.** If the daemon dies mid-alert, the saved snapshot is restored the next time it
   starts, or when you run `agent-glow restore`.
@@ -212,7 +235,7 @@ stays until you delete it.
 python3 -m unittest discover -s tests
 ```
 
-The tests run without a keyboard. They use a fake VIA device that behaves like QMK's `via.c`.
+The tests run without a keyboard. They use a fake Logitech device and a fake VIA device that behaves like QMK's `via.c`.
 
 ## License
 
