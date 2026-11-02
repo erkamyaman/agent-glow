@@ -817,7 +817,8 @@ class KeyboardProtocol(unittest.TestCase):
     def test_permission_problems_name_the_cause(self):
         via = FakeVia()
         via.refuse_open = "open failed: Permission denied"
-        message = self.assertUnusable(via, "cannot open it: open failed: Permission denied")
+        with mock.patch.object(ag.sys, "platform", "darwin"):
+            message = self.assertUnusable(via, "cannot open it: open failed: Permission denied")
         self.assertNotIn("udev", message)
         with mock.patch.object(ag.sys, "platform", "linux"):
             self.assertIn("udev-rule", self.assertUnusable(via, "cannot open it"))
