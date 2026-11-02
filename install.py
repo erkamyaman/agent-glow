@@ -595,7 +595,7 @@ def install(paths, agents, keyboard=None, use_venv=True, service=None, run=subpr
     usable, report = probe_keyboard(paths, run)
     say("keyboard: " + ("ready" if usable else "not usable yet"))
     for line in report.splitlines():
-        say(f"          {line}")
+        say(f"          {line}".rstrip())
     needs_udev = paths.platform == "linux" and "cannot open" in report
 
     for agent, path, text, new in edits:
